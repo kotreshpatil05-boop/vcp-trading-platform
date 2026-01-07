@@ -6,479 +6,483 @@ import { createChart } from 'lightweight-charts';
  * Full detailed analysis with VCP pattern proof, trading levels, and charts
  */
 const StockDetailPage = ({ stock, onClose }) => {
-    const chartContainerRef = useRef(null);
-    const [activeTab, setActiveTab] = useState('analysis');
+  const chartContainerRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('analysis');
 
-    // Calculate trading levels based on VCP setup
-    const calculateTradingLevels = () => {
-        if (!stock?.vcp_setup) {
-            return {
-                entry: stock?.current_price || 0,
-                stopLoss: 0,
-                target1: 0,
-                target2: 0,
-                target3: 0,
-                riskRewardRatio: 0
-            };
-        }
+  // Calculate trading levels based on VCP setup
+  const calculateTradingLevels = () => {
+    if (!stock?.vcp_setup) {
+      return {
+        entry: stock?.current_price || 0,
+        stopLoss: 0,
+        target1: 0,
+        target2: 0,
+        target3: 0,
+        riskRewardRatio: 0
+      };
+    }
 
-        const setup = stock.vcp_setup;
-        const pivotPrice = setup.pivot_price;
-        const currentPrice = setup.current_price;
+    const setup = stock.vcp_setup;
+    const pivotPrice = setup.pivot_price;
+    const currentPrice = setup.current_price;
 
-        // Entry: Just above pivot (1% buffer)
-        const entry = pivotPrice * 1.01;
+    // Entry: Just above pivot (1% buffer)
+    const entry = pivotPrice * 1.01;
 
-        // Stop Loss: Below the lowest low of the last leg or 7-8% below entry
-        const lastLeg = setup.legs?.[setup.legs.length - 1];
-        const stopLossFromLeg = lastLeg ? lastLeg.low_price * 0.99 : entry * 0.92;
-        const stopLossPercent = entry * 0.92; // 8% below entry
-        const stopLoss = Math.max(stopLossFromLeg, stopLossPercent);
+    // Stop Loss: Below the lowest low of the last leg or 7-8% below entry
+    const lastLeg = setup.legs?.[setup.legs.length - 1];
+    const stopLossFromLeg = lastLeg ? lastLeg.low_price * 0.99 : entry * 0.92;
+    const stopLossPercent = entry * 0.92; // 8% below entry
+    const stopLoss = Math.max(stopLossFromLeg, stopLossPercent);
 
-        // Risk amount
-        const risk = entry - stopLoss;
+    // Risk amount
+    const risk = entry - stopLoss;
 
-        // Targets based on risk-reward (1:2, 1:3, 1:5)
-        const target1 = entry + (risk * 2); // 1:2 R:R
-        const target2 = entry + (risk * 3); // 1:3 R:R
-        const target3 = entry + (risk * 5); // 1:5 R:R
+    // Targets based on risk-reward (1:2, 1:3, 1:5)
+    const target1 = entry + (risk * 2); // 1:2 R:R
+    const target2 = entry + (risk * 3); // 1:3 R:R
+    const target3 = entry + (risk * 5); // 1:5 R:R
 
-        const riskPercent = ((entry - stopLoss) / entry) * 100;
-        const rewardPercent = ((target2 - entry) / entry) * 100;
-        const riskRewardRatio = rewardPercent / riskPercent;
+    const riskPercent = ((entry - stopLoss) / entry) * 100;
+    const rewardPercent = ((target2 - entry) / entry) * 100;
+    const riskRewardRatio = rewardPercent / riskPercent;
 
-        return {
-            entry: entry.toFixed(2),
-            stopLoss: stopLoss.toFixed(2),
-            target1: target1.toFixed(2),
-            target2: target2.toFixed(2),
-            target3: target3.toFixed(2),
-            riskPercent: riskPercent.toFixed(1),
-            rewardPercent: rewardPercent.toFixed(1),
-            riskRewardRatio: riskRewardRatio.toFixed(1)
-        };
+    return {
+      entry: entry.toFixed(2),
+      stopLoss: stopLoss.toFixed(2),
+      target1: target1.toFixed(2),
+      target2: target2.toFixed(2),
+      target3: target3.toFixed(2),
+      riskPercent: riskPercent.toFixed(1),
+      rewardPercent: rewardPercent.toFixed(1),
+      riskRewardRatio: riskRewardRatio.toFixed(1)
     };
+  };
 
-    const tradingLevels = calculateTradingLevels();
-    const setup = stock?.vcp_setup;
+  const tradingLevels = calculateTradingLevels();
+  const setup = stock?.vcp_setup;
 
-    // VCP Pattern Proof Points
-    const getVCPProofPoints = () => {
-        if (!setup) return [];
+  // VCP Pattern Proof Points
+  const getVCPProofPoints = () => {
+    if (!setup) return [];
 
-        const proofs = [];
+    const proofs = [];
 
-        // Check progressive contraction
-        if (setup.legs && setup.legs.length >= 3) {
-            const isProgressive = setup.legs.every((leg, i) =>
-                i === 0 || leg.pullback_depth < setup.legs[i - 1].pullback_depth
-            );
-            proofs.push({
-                criteria: 'Progressive Contraction',
-                status: isProgressive,
-                detail: `${setup.legs.length} legs with decreasing pullback depths`,
-                values: setup.legs.map(l => `${l.pullback_depth.toFixed(1)}%`).join(' → ')
-            });
-        }
+    // Check progressive contraction
+    if (setup.legs && setup.legs.length >= 3) {
+      const isProgressive = setup.legs.every((leg, i) =>
+        i === 0 || leg.pullback_depth < setup.legs[i - 1].pullback_depth
+      );
+      proofs.push({
+        criteria: 'Progressive Contraction',
+        status: isProgressive,
+        detail: `${setup.legs.length} legs with decreasing pullback depths`,
+        values: setup.legs.map(l => `${l.pullback_depth?.toFixed(1) || '0'}%`).join(' → ')
+      });
+    }
 
-        // Volume dry-up
-        proofs.push({
-            criteria: 'Volume Dry-Up',
-            status: setup.volume_dry_up > 20,
-            detail: `Volume contracted by ${setup.volume_dry_up.toFixed(1)}%`,
-            values: setup.volume_dry_up >= 30 ? 'Excellent' : setup.volume_dry_up >= 20 ? 'Good' : 'Weak'
-        });
+    // Volume dry-up (with null check)
+    const volumeDryUp = setup.volume_dry_up ?? 0;
+    proofs.push({
+      criteria: 'Volume Dry-Up',
+      status: volumeDryUp > 20,
+      detail: `Volume contracted by ${volumeDryUp.toFixed(1)}%`,
+      values: volumeDryUp >= 30 ? 'Excellent' : volumeDryUp >= 20 ? 'Good' : 'Weak'
+    });
 
-        // Base depth
-        proofs.push({
-            criteria: 'Shallow Base (12-15%)',
-            status: setup.total_base_depth >= 8 && setup.total_base_depth <= 20,
-            detail: `Total base depth: ${setup.total_base_depth.toFixed(1)}%`,
-            values: setup.total_base_depth <= 15 ? 'Ideal' : 'Acceptable'
-        });
+    // Base depth (with null check)
+    const baseDepth = setup.total_base_depth ?? 0;
+    proofs.push({
+      criteria: 'Shallow Base (12-15%)',
+      status: baseDepth >= 8 && baseDepth <= 20,
+      detail: `Total base depth: ${baseDepth.toFixed(1)}%`,
+      values: baseDepth <= 15 ? 'Ideal' : 'Acceptable'
+    });
 
-        // Trend alignment
-        proofs.push({
-            criteria: 'Trend Alignment',
-            status: setup.trend_alignment,
-            detail: 'Price above 20-SMA and 50-SMA',
-            values: setup.trend_alignment ? 'Aligned ✓' : 'Not Aligned ✗'
-        });
+    // Trend alignment
+    proofs.push({
+      criteria: 'Trend Alignment',
+      status: setup.trend_alignment ?? false,
+      detail: 'Price above 20-SMA and 50-SMA',
+      values: setup.trend_alignment ? 'Aligned ✓' : 'Not Aligned ✗'
+    });
 
-        // Relative strength
-        proofs.push({
-            criteria: 'Relative Strength > 70',
-            status: setup.rs_percentile >= 70,
-            detail: `RS Percentile: ${setup.rs_percentile.toFixed(0)}`,
-            values: setup.rs_percentile >= 80 ? 'Strong Leader' : setup.rs_percentile >= 70 ? 'Above Average' : 'Weak'
-        });
+    // Relative strength (with null check)
+    const rsPercentile = setup.rs_percentile ?? 0;
+    proofs.push({
+      criteria: 'Relative Strength > 70',
+      status: rsPercentile >= 70,
+      detail: `RS Percentile: ${rsPercentile.toFixed(0)}`,
+      values: rsPercentile >= 80 ? 'Strong Leader' : rsPercentile >= 70 ? 'Above Average' : 'Weak'
+    });
 
-        // Distance from pivot
-        proofs.push({
-            criteria: 'Near Breakout Point',
-            status: setup.distance_from_pivot <= 7,
-            detail: `${setup.distance_from_pivot.toFixed(1)}% from pivot`,
-            values: setup.distance_from_pivot <= 3 ? 'Very Close' : setup.distance_from_pivot <= 7 ? 'In Range' : 'Too Far'
-        });
+    // Distance from pivot (with null check)
+    const distanceFromPivot = setup.distance_from_pivot ?? 100;
+    proofs.push({
+      criteria: 'Near Breakout Point',
+      status: distanceFromPivot <= 7,
+      detail: `${distanceFromPivot.toFixed(1)}% from pivot`,
+      values: distanceFromPivot <= 3 ? 'Very Close' : distanceFromPivot <= 7 ? 'In Range' : 'Too Far'
+    });
 
-        return proofs;
-    };
+    return proofs;
+  };
 
-    const proofPoints = getVCPProofPoints();
-    const passedCriteria = proofPoints.filter(p => p.status).length;
-    const totalCriteria = proofPoints.length;
+  const proofPoints = getVCPProofPoints();
+  const passedCriteria = proofPoints.filter(p => p.status).length;
+  const totalCriteria = proofPoints.length;
 
-    return (
-        <div className="stock-detail-overlay">
-            <div className="stock-detail-page">
-                {/* Header */}
-                <div className="detail-header">
-                    <div className="header-left">
-                        <button className="back-btn" onClick={onClose}>← Back</button>
-                        <div className="stock-title">
-                            <h1>{stock?.symbol}</h1>
-                            <span className="stock-name">{stock?.name || stock?.stock_name}</span>
-                        </div>
-                    </div>
-                    <div className="header-right">
-                        <div className="current-price">
-                            <span className="price-label">Current Price</span>
-                            <span className="price-value">₹{stock?.current_price?.toLocaleString()}</span>
-                        </div>
-                        <div className={`vcp-badge ${passedCriteria >= 5 ? 'strong' : passedCriteria >= 3 ? 'moderate' : 'weak'}`}>
-                            VCP Score: {setup?.score?.toFixed(0) || 'N/A'}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="detail-tabs">
-                    <button
-                        className={`tab ${activeTab === 'analysis' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('analysis')}
-                    >
-                        📊 Analysis
-                    </button>
-                    <button
-                        className={`tab ${activeTab === 'trading' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('trading')}
-                    >
-                        🎯 Trading Plan
-                    </button>
-                    <button
-                        className={`tab ${activeTab === 'pattern' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('pattern')}
-                    >
-                        📐 VCP Proof
-                    </button>
-                </div>
-
-                {/* Tab Content */}
-                <div className="tab-content">
-                    {/* Analysis Tab */}
-                    {activeTab === 'analysis' && (
-                        <div className="analysis-tab">
-                            {/* Chart Section */}
-                            <div className="chart-section">
-                                <div className="section-header">
-                                    <h3>📈 Price Chart with VCP Pattern</h3>
-                                    <div className="chart-legend">
-                                        <span className="legend-item"><span className="dot sma20"></span> SMA 20</span>
-                                        <span className="legend-item"><span className="dot sma50"></span> SMA 50</span>
-                                        <span className="legend-item"><span className="dot pivot"></span> Pivot Level</span>
-                                    </div>
-                                </div>
-                                <div className="chart-placeholder">
-                                    <div className="pattern-visualization">
-                                        {/* VCP Pattern ASCII Art */}
-                                        <div className="vcp-pattern-visual">
-                                            <svg viewBox="0 0 400 150" className="vcp-svg">
-                                                {/* Base pattern line */}
-                                                <path
-                                                    d="M 20 20 L 60 80 L 100 30 L 130 70 L 160 40 L 185 60 L 210 45 L 230 55 L 250 48 L 280 52 L 380 20"
-                                                    stroke="url(#gradient)"
-                                                    strokeWidth="3"
-                                                    fill="none"
-                                                />
-                                                {/* Pivot line */}
-                                                <line x1="20" y1="20" x2="380" y2="20" stroke="#ffd700" strokeWidth="1" strokeDasharray="5,5" />
-                                                {/* Stop loss line */}
-                                                <line x1="20" y1="80" x2="380" y2="80" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" />
-                                                {/* Leg labels */}
-                                                <text x="80" y="100" fill="#94a3b8" fontSize="10">Leg 1</text>
-                                                <text x="140" y="90" fill="#94a3b8" fontSize="10">Leg 2</text>
-                                                <text x="195" y="80" fill="#94a3b8" fontSize="10">Leg 3</text>
-                                                <text x="240" y="75" fill="#94a3b8" fontSize="10">Leg 4</text>
-                                                <text x="320" y="35" fill="#10b981" fontSize="10">Breakout →</text>
-                                                <text x="385" y="25" fill="#ffd700" fontSize="9">Pivot</text>
-                                                <text x="385" y="85" fill="#ef4444" fontSize="9">Stop</text>
-                                                <defs>
-                                                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                        <stop offset="0%" stopColor="#00d4ff" />
-                                                        <stop offset="100%" stopColor="#10b981" />
-                                                    </linearGradient>
-                                                </defs>
-                                            </svg>
-                                        </div>
-                                        <div className="pattern-labels">
-                                            <div className="label">
-                                                <span className="icon">📉</span>
-                                                <span>Contracting Volatility</span>
-                                            </div>
-                                            <div className="label">
-                                                <span className="icon">📊</span>
-                                                <span>Decreasing Volume</span>
-                                            </div>
-                                            <div className="label">
-                                                <span className="icon">🎯</span>
-                                                <span>Pivot Point Ready</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Key Metrics */}
-                            <div className="metrics-grid">
-                                <div className="metric-card">
-                                    <span className="metric-icon">📊</span>
-                                    <span className="metric-label">VCP Score</span>
-                                    <span className="metric-value">{setup?.score?.toFixed(0) || '-'}</span>
-                                </div>
-                                <div className="metric-card">
-                                    <span className="metric-icon">📐</span>
-                                    <span className="metric-label">Base Depth</span>
-                                    <span className="metric-value">{setup?.total_base_depth?.toFixed(1)}%</span>
-                                </div>
-                                <div className="metric-card">
-                                    <span className="metric-icon">📈</span>
-                                    <span className="metric-label">RS Percentile</span>
-                                    <span className="metric-value">{setup?.rs_percentile?.toFixed(0)}</span>
-                                </div>
-                                <div className="metric-card">
-                                    <span className="metric-icon">🔊</span>
-                                    <span className="metric-label">Vol Dry-Up</span>
-                                    <span className="metric-value">{setup?.volume_dry_up?.toFixed(0)}%</span>
-                                </div>
-                                <div className="metric-card">
-                                    <span className="metric-icon">🦵</span>
-                                    <span className="metric-label">Pattern Legs</span>
-                                    <span className="metric-value">{setup?.legs?.length || 0}</span>
-                                </div>
-                                <div className="metric-card">
-                                    <span className="metric-icon">📏</span>
-                                    <span className="metric-label">From Pivot</span>
-                                    <span className="metric-value">{setup?.distance_from_pivot?.toFixed(1)}%</span>
-                                </div>
-                            </div>
-
-                            {/* Contraction Legs Detail */}
-                            <div className="legs-section">
-                                <h3>🦵 Contraction Legs Analysis</h3>
-                                <div className="legs-table">
-                                    <div className="legs-header">
-                                        <span>Leg</span>
-                                        <span>Pullback %</span>
-                                        <span>Volume</span>
-                                        <span>Days</span>
-                                        <span>Contraction</span>
-                                    </div>
-                                    {setup?.legs?.map((leg, idx) => (
-                                        <div key={idx} className="leg-row">
-                                            <span className="leg-num">Leg {leg.leg_number}</span>
-                                            <span className={`pullback ${leg.pullback_depth < 15 ? 'good' : ''}`}>
-                                                {leg.pullback_depth.toFixed(1)}%
-                                            </span>
-                                            <span className="volume">{leg.volume_ratio.toFixed(2)}x</span>
-                                            <span className="days">{leg.duration_days}d</span>
-                                            <span className="contraction">
-                                                {idx > 0 && setup.legs[idx - 1].pullback_depth > leg.pullback_depth
-                                                    ? <span className="contracting">✓ Contracting</span>
-                                                    : idx === 0
-                                                        ? <span className="first">Base Leg</span>
-                                                        : <span className="expanding">⚠ Expanding</span>
-                                                }
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Trading Plan Tab */}
-                    {activeTab === 'trading' && (
-                        <div className="trading-tab">
-                            {/* Trading Levels Card */}
-                            <div className="trading-levels-card">
-                                <h3>🎯 Trading Levels</h3>
-                                <div className="levels-visual">
-                                    <div className="level-bar">
-                                        <div className="target target3" style={{ bottom: '90%' }}>
-                                            <span className="level-label">Target 3 (1:5)</span>
-                                            <span className="level-price">₹{tradingLevels.target3}</span>
-                                        </div>
-                                        <div className="target target2" style={{ bottom: '70%' }}>
-                                            <span className="level-label">Target 2 (1:3)</span>
-                                            <span className="level-price">₹{tradingLevels.target2}</span>
-                                        </div>
-                                        <div className="target target1" style={{ bottom: '50%' }}>
-                                            <span className="level-label">Target 1 (1:2)</span>
-                                            <span className="level-price">₹{tradingLevels.target1}</span>
-                                        </div>
-                                        <div className="entry" style={{ bottom: '30%' }}>
-                                            <span className="level-label">🚀 Entry (Above Pivot)</span>
-                                            <span className="level-price">₹{tradingLevels.entry}</span>
-                                        </div>
-                                        <div className="stoploss" style={{ bottom: '10%' }}>
-                                            <span className="level-label">🛑 Stop Loss</span>
-                                            <span className="level-price">₹{tradingLevels.stopLoss}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Risk Reward Analysis */}
-                            <div className="risk-reward-card">
-                                <h3>⚖️ Risk/Reward Analysis</h3>
-                                <div className="rr-grid">
-                                    <div className="rr-item risk">
-                                        <span className="rr-label">Risk</span>
-                                        <span className="rr-value">{tradingLevels.riskPercent}%</span>
-                                        <span className="rr-amount">₹{(parseFloat(tradingLevels.entry) - parseFloat(tradingLevels.stopLoss)).toFixed(2)}</span>
-                                    </div>
-                                    <div className="rr-divider">:</div>
-                                    <div className="rr-item reward">
-                                        <span className="rr-label">Reward</span>
-                                        <span className="rr-value">{tradingLevels.rewardPercent}%</span>
-                                        <span className="rr-amount">₹{(parseFloat(tradingLevels.target2) - parseFloat(tradingLevels.entry)).toFixed(2)}</span>
-                                    </div>
-                                </div>
-                                <div className="rr-ratio">
-                                    <span>Risk:Reward Ratio</span>
-                                    <span className={`ratio ${parseFloat(tradingLevels.riskRewardRatio) >= 2 ? 'good' : 'bad'}`}>
-                                        1:{tradingLevels.riskRewardRatio}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Exit Strategy */}
-                            <div className="exit-strategy-card">
-                                <h3>🚪 Exit Strategy</h3>
-                                <div className="exit-rules">
-                                    <div className="exit-rule">
-                                        <div className="rule-icon profit">💰</div>
-                                        <div className="rule-content">
-                                            <h4>Profit Taking (Scaling Out)</h4>
-                                            <ul>
-                                                <li>Sell <strong>33%</strong> at Target 1 (₹{tradingLevels.target1})</li>
-                                                <li>Sell <strong>33%</strong> at Target 2 (₹{tradingLevels.target2})</li>
-                                                <li>Trail remaining <strong>34%</strong> with 20-SMA</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                    <div className="exit-rule">
-                                        <div className="rule-icon loss">🛑</div>
-                                        <div className="rule-content">
-                                            <h4>Stop Loss Rules</h4>
-                                            <ul>
-                                                <li>Initial stop: <strong>₹{tradingLevels.stopLoss}</strong> (below last leg low)</li>
-                                                <li>Move to breakeven after <strong>+5%</strong> gain</li>
-                                                <li>Use <strong>trailing stop</strong> after Target 1</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                    <div className="exit-rule">
-                                        <div className="rule-icon warning">⚠️</div>
-                                        <div className="rule-content">
-                                            <h4>Exit Signals</h4>
-                                            <ul>
-                                                <li>Close below <strong>20-SMA</strong> on heavy volume</li>
-                                                <li>Bearish reversal pattern at resistance</li>
-                                                <li>Market-wide weakness</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Position Sizing */}
-                            <div className="position-card">
-                                <h3>📊 Position Sizing Guide</h3>
-                                <div className="position-calc">
-                                    <div className="calc-item">
-                                        <span>If Portfolio = ₹10,00,000</span>
-                                        <span>Risk 1% = ₹10,000</span>
-                                    </div>
-                                    <div className="calc-item">
-                                        <span>Per Share Risk = ₹{(parseFloat(tradingLevels.entry) - parseFloat(tradingLevels.stopLoss)).toFixed(2)}</span>
-                                        <span>Max Shares = {Math.floor(10000 / (parseFloat(tradingLevels.entry) - parseFloat(tradingLevels.stopLoss)))}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* VCP Proof Tab */}
-                    {activeTab === 'pattern' && (
-                        <div className="pattern-tab">
-                            {/* VCP Validation Score */}
-                            <div className="validation-header">
-                                <div className="validation-score">
-                                    <div className="score-circle">
-                                        <span className="score-num">{passedCriteria}</span>
-                                        <span className="score-total">/{totalCriteria}</span>
-                                    </div>
-                                    <span className="score-label">Criteria Passed</span>
-                                </div>
-                                <div className={`validation-badge ${passedCriteria >= 5 ? 'valid' : passedCriteria >= 3 ? 'partial' : 'invalid'}`}>
-                                    {passedCriteria >= 5 ? '✅ Valid VCP Pattern' : passedCriteria >= 3 ? '⚠️ Partial VCP' : '❌ Not Valid VCP'}
-                                </div>
-                            </div>
-
-                            {/* Proof Points */}
-                            <div className="proof-grid">
-                                {proofPoints.map((proof, idx) => (
-                                    <div key={idx} className={`proof-card ${proof.status ? 'passed' : 'failed'}`}>
-                                        <div className="proof-header">
-                                            <span className={`proof-status ${proof.status ? 'pass' : 'fail'}`}>
-                                                {proof.status ? '✓' : '✗'}
-                                            </span>
-                                            <span className="proof-title">{proof.criteria}</span>
-                                        </div>
-                                        <div className="proof-detail">{proof.detail}</div>
-                                        <div className="proof-values">{proof.values}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* VCP Definition Reference */}
-                            <div className="vcp-reference">
-                                <h3>📚 Mark Minervini VCP Criteria Reference</h3>
-                                <div className="reference-content">
-                                    <div className="ref-item">
-                                        <strong>1. Volatility Contraction:</strong> Each pullback should be smaller than the previous one (tightening pattern)
-                                    </div>
-                                    <div className="ref-item">
-                                        <strong>2. Volume Dry-Up:</strong> Volume should decrease during the base formation, showing lack of selling pressure
-                                    </div>
-                                    <div className="ref-item">
-                                        <strong>3. Base Depth:</strong> Final contraction should be shallow (typically 10-15%), indicating accumulation
-                                    </div>
-                                    <div className="ref-item">
-                                        <strong>4. Pivot Point:</strong> A clear resistance level that, when broken on volume, triggers the trade
-                                    </div>
-                                    <div className="ref-item">
-                                        <strong>5. Relative Strength:</strong> Stock should outperform the market (RS Rating > 70)
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+  return (
+    <div className="stock-detail-overlay">
+      <div className="stock-detail-page">
+        {/* Header */}
+        <div className="detail-header">
+          <div className="header-left">
+            <button className="back-btn" onClick={onClose}>← Back</button>
+            <div className="stock-title">
+              <h1>{stock?.symbol}</h1>
+              <span className="stock-name">{stock?.name || stock?.stock_name}</span>
             </div>
+          </div>
+          <div className="header-right">
+            <div className="current-price">
+              <span className="price-label">Current Price</span>
+              <span className="price-value">₹{stock?.current_price?.toLocaleString()}</span>
+            </div>
+            <div className={`vcp-badge ${passedCriteria >= 5 ? 'strong' : passedCriteria >= 3 ? 'moderate' : 'weak'}`}>
+              VCP Score: {setup?.score?.toFixed(0) || 'N/A'}
+            </div>
+          </div>
+        </div>
 
-            <style>{`
+        {/* Tabs */}
+        <div className="detail-tabs">
+          <button
+            className={`tab ${activeTab === 'analysis' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analysis')}
+          >
+            📊 Analysis
+          </button>
+          <button
+            className={`tab ${activeTab === 'trading' ? 'active' : ''}`}
+            onClick={() => setActiveTab('trading')}
+          >
+            🎯 Trading Plan
+          </button>
+          <button
+            className={`tab ${activeTab === 'pattern' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pattern')}
+          >
+            📐 VCP Proof
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        <div className="tab-content">
+          {/* Analysis Tab */}
+          {activeTab === 'analysis' && (
+            <div className="analysis-tab">
+              {/* Chart Section */}
+              <div className="chart-section">
+                <div className="section-header">
+                  <h3>📈 Price Chart with VCP Pattern</h3>
+                  <div className="chart-legend">
+                    <span className="legend-item"><span className="dot sma20"></span> SMA 20</span>
+                    <span className="legend-item"><span className="dot sma50"></span> SMA 50</span>
+                    <span className="legend-item"><span className="dot pivot"></span> Pivot Level</span>
+                  </div>
+                </div>
+                <div className="chart-placeholder">
+                  <div className="pattern-visualization">
+                    {/* VCP Pattern ASCII Art */}
+                    <div className="vcp-pattern-visual">
+                      <svg viewBox="0 0 400 150" className="vcp-svg">
+                        {/* Base pattern line */}
+                        <path
+                          d="M 20 20 L 60 80 L 100 30 L 130 70 L 160 40 L 185 60 L 210 45 L 230 55 L 250 48 L 280 52 L 380 20"
+                          stroke="url(#gradient)"
+                          strokeWidth="3"
+                          fill="none"
+                        />
+                        {/* Pivot line */}
+                        <line x1="20" y1="20" x2="380" y2="20" stroke="#ffd700" strokeWidth="1" strokeDasharray="5,5" />
+                        {/* Stop loss line */}
+                        <line x1="20" y1="80" x2="380" y2="80" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" />
+                        {/* Leg labels */}
+                        <text x="80" y="100" fill="#94a3b8" fontSize="10">Leg 1</text>
+                        <text x="140" y="90" fill="#94a3b8" fontSize="10">Leg 2</text>
+                        <text x="195" y="80" fill="#94a3b8" fontSize="10">Leg 3</text>
+                        <text x="240" y="75" fill="#94a3b8" fontSize="10">Leg 4</text>
+                        <text x="320" y="35" fill="#10b981" fontSize="10">Breakout →</text>
+                        <text x="385" y="25" fill="#ffd700" fontSize="9">Pivot</text>
+                        <text x="385" y="85" fill="#ef4444" fontSize="9">Stop</text>
+                        <defs>
+                          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#00d4ff" />
+                            <stop offset="100%" stopColor="#10b981" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                    </div>
+                    <div className="pattern-labels">
+                      <div className="label">
+                        <span className="icon">📉</span>
+                        <span>Contracting Volatility</span>
+                      </div>
+                      <div className="label">
+                        <span className="icon">📊</span>
+                        <span>Decreasing Volume</span>
+                      </div>
+                      <div className="label">
+                        <span className="icon">🎯</span>
+                        <span>Pivot Point Ready</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Metrics */}
+              <div className="metrics-grid">
+                <div className="metric-card">
+                  <span className="metric-icon">📊</span>
+                  <span className="metric-label">VCP Score</span>
+                  <span className="metric-value">{setup?.score?.toFixed(0) || '-'}</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-icon">📐</span>
+                  <span className="metric-label">Base Depth</span>
+                  <span className="metric-value">{setup?.total_base_depth?.toFixed(1)}%</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-icon">📈</span>
+                  <span className="metric-label">RS Percentile</span>
+                  <span className="metric-value">{setup?.rs_percentile?.toFixed(0)}</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-icon">🔊</span>
+                  <span className="metric-label">Vol Dry-Up</span>
+                  <span className="metric-value">{setup?.volume_dry_up?.toFixed(0)}%</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-icon">🦵</span>
+                  <span className="metric-label">Pattern Legs</span>
+                  <span className="metric-value">{setup?.legs?.length || 0}</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-icon">📏</span>
+                  <span className="metric-label">From Pivot</span>
+                  <span className="metric-value">{setup?.distance_from_pivot?.toFixed(1)}%</span>
+                </div>
+              </div>
+
+              {/* Contraction Legs Detail */}
+              <div className="legs-section">
+                <h3>🦵 Contraction Legs Analysis</h3>
+                <div className="legs-table">
+                  <div className="legs-header">
+                    <span>Leg</span>
+                    <span>Pullback %</span>
+                    <span>Volume</span>
+                    <span>Days</span>
+                    <span>Contraction</span>
+                  </div>
+                  {setup?.legs?.map((leg, idx) => (
+                    <div key={idx} className="leg-row">
+                      <span className="leg-num">Leg {leg.leg_number}</span>
+                      <span className={`pullback ${(leg.pullback_depth ?? 0) < 15 ? 'good' : ''}`}>
+                        {(leg.pullback_depth ?? 0).toFixed(1)}%
+                      </span>
+                      <span className="volume">{(leg.volume_ratio ?? 1).toFixed(2)}x</span>
+                      <span className="days">{leg.duration_days ?? 0}d</span>
+                      <span className="contraction">
+                        {idx > 0 && (setup.legs[idx - 1]?.pullback_depth ?? 0) > (leg.pullback_depth ?? 0)
+                          ? <span className="contracting">✓ Contracting</span>
+                          : idx === 0
+                            ? <span className="first">Base Leg</span>
+                            : <span className="expanding">⚠ Expanding</span>
+                        }
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Trading Plan Tab */}
+          {activeTab === 'trading' && (
+            <div className="trading-tab">
+              {/* Trading Levels Card */}
+              <div className="trading-levels-card">
+                <h3>🎯 Trading Levels</h3>
+                <div className="levels-visual">
+                  <div className="level-bar">
+                    <div className="target target3" style={{ bottom: '90%' }}>
+                      <span className="level-label">Target 3 (1:5)</span>
+                      <span className="level-price">₹{tradingLevels.target3}</span>
+                    </div>
+                    <div className="target target2" style={{ bottom: '70%' }}>
+                      <span className="level-label">Target 2 (1:3)</span>
+                      <span className="level-price">₹{tradingLevels.target2}</span>
+                    </div>
+                    <div className="target target1" style={{ bottom: '50%' }}>
+                      <span className="level-label">Target 1 (1:2)</span>
+                      <span className="level-price">₹{tradingLevels.target1}</span>
+                    </div>
+                    <div className="entry" style={{ bottom: '30%' }}>
+                      <span className="level-label">🚀 Entry (Above Pivot)</span>
+                      <span className="level-price">₹{tradingLevels.entry}</span>
+                    </div>
+                    <div className="stoploss" style={{ bottom: '10%' }}>
+                      <span className="level-label">🛑 Stop Loss</span>
+                      <span className="level-price">₹{tradingLevels.stopLoss}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Reward Analysis */}
+              <div className="risk-reward-card">
+                <h3>⚖️ Risk/Reward Analysis</h3>
+                <div className="rr-grid">
+                  <div className="rr-item risk">
+                    <span className="rr-label">Risk</span>
+                    <span className="rr-value">{tradingLevels.riskPercent}%</span>
+                    <span className="rr-amount">₹{(parseFloat(tradingLevels.entry) - parseFloat(tradingLevels.stopLoss)).toFixed(2)}</span>
+                  </div>
+                  <div className="rr-divider">:</div>
+                  <div className="rr-item reward">
+                    <span className="rr-label">Reward</span>
+                    <span className="rr-value">{tradingLevels.rewardPercent}%</span>
+                    <span className="rr-amount">₹{(parseFloat(tradingLevels.target2) - parseFloat(tradingLevels.entry)).toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="rr-ratio">
+                  <span>Risk:Reward Ratio</span>
+                  <span className={`ratio ${parseFloat(tradingLevels.riskRewardRatio) >= 2 ? 'good' : 'bad'}`}>
+                    1:{tradingLevels.riskRewardRatio}
+                  </span>
+                </div>
+              </div>
+
+              {/* Exit Strategy */}
+              <div className="exit-strategy-card">
+                <h3>🚪 Exit Strategy</h3>
+                <div className="exit-rules">
+                  <div className="exit-rule">
+                    <div className="rule-icon profit">💰</div>
+                    <div className="rule-content">
+                      <h4>Profit Taking (Scaling Out)</h4>
+                      <ul>
+                        <li>Sell <strong>33%</strong> at Target 1 (₹{tradingLevels.target1})</li>
+                        <li>Sell <strong>33%</strong> at Target 2 (₹{tradingLevels.target2})</li>
+                        <li>Trail remaining <strong>34%</strong> with 20-SMA</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="exit-rule">
+                    <div className="rule-icon loss">🛑</div>
+                    <div className="rule-content">
+                      <h4>Stop Loss Rules</h4>
+                      <ul>
+                        <li>Initial stop: <strong>₹{tradingLevels.stopLoss}</strong> (below last leg low)</li>
+                        <li>Move to breakeven after <strong>+5%</strong> gain</li>
+                        <li>Use <strong>trailing stop</strong> after Target 1</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="exit-rule">
+                    <div className="rule-icon warning">⚠️</div>
+                    <div className="rule-content">
+                      <h4>Exit Signals</h4>
+                      <ul>
+                        <li>Close below <strong>20-SMA</strong> on heavy volume</li>
+                        <li>Bearish reversal pattern at resistance</li>
+                        <li>Market-wide weakness</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Position Sizing */}
+              <div className="position-card">
+                <h3>📊 Position Sizing Guide</h3>
+                <div className="position-calc">
+                  <div className="calc-item">
+                    <span>If Portfolio = ₹10,00,000</span>
+                    <span>Risk 1% = ₹10,000</span>
+                  </div>
+                  <div className="calc-item">
+                    <span>Per Share Risk = ₹{(parseFloat(tradingLevels.entry) - parseFloat(tradingLevels.stopLoss)).toFixed(2)}</span>
+                    <span>Max Shares = {Math.floor(10000 / (parseFloat(tradingLevels.entry) - parseFloat(tradingLevels.stopLoss)))}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VCP Proof Tab */}
+          {activeTab === 'pattern' && (
+            <div className="pattern-tab">
+              {/* VCP Validation Score */}
+              <div className="validation-header">
+                <div className="validation-score">
+                  <div className="score-circle">
+                    <span className="score-num">{passedCriteria}</span>
+                    <span className="score-total">/{totalCriteria}</span>
+                  </div>
+                  <span className="score-label">Criteria Passed</span>
+                </div>
+                <div className={`validation-badge ${passedCriteria >= 5 ? 'valid' : passedCriteria >= 3 ? 'partial' : 'invalid'}`}>
+                  {passedCriteria >= 5 ? '✅ Valid VCP Pattern' : passedCriteria >= 3 ? '⚠️ Partial VCP' : '❌ Not Valid VCP'}
+                </div>
+              </div>
+
+              {/* Proof Points */}
+              <div className="proof-grid">
+                {proofPoints.map((proof, idx) => (
+                  <div key={idx} className={`proof-card ${proof.status ? 'passed' : 'failed'}`}>
+                    <div className="proof-header">
+                      <span className={`proof-status ${proof.status ? 'pass' : 'fail'}`}>
+                        {proof.status ? '✓' : '✗'}
+                      </span>
+                      <span className="proof-title">{proof.criteria}</span>
+                    </div>
+                    <div className="proof-detail">{proof.detail}</div>
+                    <div className="proof-values">{proof.values}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* VCP Definition Reference */}
+              <div className="vcp-reference">
+                <h3>📚 Mark Minervini VCP Criteria Reference</h3>
+                <div className="reference-content">
+                  <div className="ref-item">
+                    <strong>1. Volatility Contraction:</strong> Each pullback should be smaller than the previous one (tightening pattern)
+                  </div>
+                  <div className="ref-item">
+                    <strong>2. Volume Dry-Up:</strong> Volume should decrease during the base formation, showing lack of selling pressure
+                  </div>
+                  <div className="ref-item">
+                    <strong>3. Base Depth:</strong> Final contraction should be shallow (typically 10-15%), indicating accumulation
+                  </div>
+                  <div className="ref-item">
+                    <strong>4. Pivot Point:</strong> A clear resistance level that, when broken on volume, triggers the trade
+                  </div>
+                  <div className="ref-item">
+                    <strong>5. Relative Strength:</strong> Stock should outperform the market (RS Rating {'>'} 70)
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`
         .stock-detail-overlay {
           position: fixed;
           top: 0;
@@ -1127,8 +1131,8 @@ const StockDetailPage = ({ stock, onClose }) => {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 };
 
 export default StockDetailPage;
