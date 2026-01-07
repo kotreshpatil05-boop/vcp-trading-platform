@@ -3,6 +3,7 @@ import StockChart from './components/StockChart';
 import VCPCard from './components/VCPCard';
 import BreakoutCard from './components/BreakoutCard';
 import AnalysisPanel from './components/AnalysisPanel';
+import StockDetailPage from './components/StockDetailPage';
 import api from './services/api';
 
 // Demo data for initial display (before backend is connected)
@@ -123,6 +124,8 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isScanning, setIsScanning] = useState(false);
+    const [showDetailPage, setShowDetailPage] = useState(false);
+    const [detailStock, setDetailStock] = useState(null);
 
     // Stats for dashboard
     const stats = {
@@ -174,6 +177,19 @@ function App() {
             });
         }
         setIsLoading(false);
+    };
+
+    // Handle opening detail page
+    const handleOpenDetail = (stock) => {
+        // Find the VCP setup for this stock
+        const vcpSetup = vcpSetups.find(s => s.symbol === stock.symbol) || stock.vcp_setup;
+        setDetailStock({
+            symbol: stock.symbol,
+            name: stock.stock_name || stock.name,
+            current_price: stock.current_price || stock.breakout_price,
+            vcp_setup: vcpSetup || stock
+        });
+        setShowDetailPage(true);
     };
 
     // Filter stocks based on search
@@ -393,12 +409,20 @@ function App() {
                             <BreakoutCard
                                 key={idx}
                                 breakout={breakout}
-                                onClick={() => handleStockSelect(breakout.symbol)}
+                                onClick={() => handleOpenDetail(breakout)}
                             />
                         ))}
                     </div>
                 </div>
             </main>
+
+            {/* Stock Detail Page Modal */}
+            {showDetailPage && detailStock && (
+                <StockDetailPage
+                    stock={detailStock}
+                    onClose={() => setShowDetailPage(false)}
+                />
+            )}
 
             {/* Styles for sidebar footer */}
             <style>{`
